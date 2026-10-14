@@ -1,0 +1,334 @@
+<body></body>
+<script src="https://cdn.jsdelivr.net/gh/netizenorg/netnet-standard-library/build/nn.min.js"></script>
+<script>
+  nn.create('link')
+    .set({ rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap' })
+    .addTo('head')
+
+  const ink = '#1d1d24'
+
+  const body = nn.get('body').css({
+    margin: 0,
+    overflow: 'hidden',
+    fontFamily: 'Fredoka, sans-serif'
+  })
+
+  const cx = nn.width / 2
+  const cy = nn.height / 2
+  const scale = Math.min(nn.width, nn.height)
+  const edge = nn.dist(0, 0, cx, cy)
+
+  const svg = nn.create('svg')
+    .position(0, 0)
+    .css('will-change', 'transform')
+    .addTo('body')
+
+  const beams = nn.times(6, () => {
+    return svg.polygon('0,0')
+  })
+
+  const speedLines = nn.times(40, () => {
+    return {
+      angle: nn.random(Math.PI * 2),
+      dist: nn.random(edge),
+      line: svg.line(cx, cy, cx, cy)
+        .stroke(ink)
+        .set('stroke-opacity', 0.6)
+        .css('stroke-linecap', 'round')
+    }
+  })
+
+  const rings = nn.times(10, () => {
+    return svg.polygon('0,0')
+      .fill('none')
+      .stroke(ink)
+      .css('stroke-linejoin', 'round')
+  })
+
+  const dots = nn.times(5, () => {
+    return svg.path('M 0 0')
+      .fill('none')
+      .stroke(ink)
+      .strokeWidth(8)
+      .set('stroke-dasharray', '0 34')
+      .css('stroke-linecap', 'round')
+  })
+
+  const arms = nn.times(5, () => {
+    return {
+      outline: svg.path('M 0 0').fill('none').stroke(ink).css({ strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      line: svg.path('M 0 0').fill('none').css({ strokeLinecap: 'round', strokeLinejoin: 'round' })
+    }
+  })
+
+  const stars = nn.times(6, () => {
+    return svg.polygon('0,0')
+      .stroke(ink)
+      .strokeWidth(4)
+      .css('stroke-linejoin', 'round')
+  })
+
+  let song = nn.create('audio').addTo('body')
+
+  nn.create('button')
+    .content('choose a song')
+    .css({
+      padding: '10px 20px',
+      background: 'white',
+      color: ink,
+      border: `3px solid ${ink}`,
+      borderRadius: 999,
+      boxShadow: `4px 4px 0 ${ink}`,
+      font: '600 16px Fredoka, sans-serif',
+      cursor: 'pointer'
+    })
+    .position(24, 24)
+    .addTo('body')
+    .on('mousedown', (e) => e.preventDefault())
+    .on('click', chooseSong)
+
+  const hint = nn.create('div')
+    .content('press q or w &nbsp;&middot;&nbsp; space to pause')
+    .css({ color: ink, fontSize: 18, width: '100%', textAlign: 'center' })
+    .position(0, nn.height - 56)
+    .addTo('body')
+
+  async function chooseSong () {
+    const file = await nn.upload({ types: ['audio/*'] })
+    if (!file || file.error) return
+    song.src = file.data
+    song.play()
+    hint.remove()
+  }
+
+  let audioCtx, analyser
+  let freqData = new Uint8Array(128)
+
+  song.on('play', () => {
+    if (!audioCtx) {
+      audioCtx = new AudioContext()
+      analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.5
+      analyser.maxDecibels = -10
+      audioCtx.createMediaElementSource(song).connect(analyser)
+      analyser.connect(audioCtx.destination)
+    }
+    audioCtx.resume()
+  })
+
+  let sparks = []
+  let shocks = []
+  let sides = 4
+  let hue = 6
+  let morphTime = -10
+  let travel = 0
+  let turn = 0
+  let lastT = performance.now() / 1000
+  let avgBass = 0
+  let lastBeat = 0
+  let punch = 0
+  let flash = 0
+  let energy = 0
+  let peak = 0.6
+  let hype = 0
+
+  function starPoints (x, y, r, spin) {
+    return nn.times(10, (j) => {
+      const p = nn.polarToCartesian(j % 2 === 0 ? r : r * 0.45, j / 10 * Math.PI * 2 + spin)
+      return `${x + p.x},${y + p.y}`
+    }).join(' ')
+  }
+
+  function burst (t) {
+    nn.times(10, (i) => {
+      sparks.push({
+        angle: i / 10 * Math.PI * 2,
+        speed: nn.random(250, 500),
+        size: nn.random(14, 30),
+        born: t,
+        shape: svg.polygon('0,0')
+          .fill(nn.hsl(nn.random(360), 95, 65))
+          .stroke(ink)
+          .strokeWidth(3)
+          .css('stroke-linejoin', 'round')
+      })
+    })
+  }
+
+  function morph (t) {
+    sides = nn.random([3, 4, 5])
+    hue += nn.random(60, 120)
+    morphTime = t
+    kick(t)
+    punch = 1.6
+    flash = 1
+  }
+
+  function kick (t) {
+    lastBeat = t
+    punch = 1
+    flash = hype
+    hue += 25 * hype
+    shocks.push({
+      born: t,
+      shape: svg.polygon('0,0')
+        .fill('none')
+        .stroke(ink)
+        .css('stroke-linejoin', 'round')
+    })
+  }
+
+  function play (e) {
+    const t = performance.now() / 1000
+    if (e.key === ' ' && !song.paused) song.pause()
+    else if (song.paused && song.src) song.play()
+    if (e.key === 'q') burst(t)
+    if (e.key === 'w') morph(t)
+    hint.remove()
+  }
+
+  nn.on('keydown', play)
+
+  function level (from, to) {
+    let sum = 0
+    for (let i = from; i < to; i++) sum += freqData[i]
+    return sum / (to - from) / 255
+  }
+
+  function spiral (i, curl, spin, t) {
+    const boil = Math.floor(t * 8)
+    const pts = nn.times(48, (k) => {
+      const f = k / 47
+      const loud = freqData[Math.floor(f * 48)] / 255
+      const wave = Math.sin(f * 20 - t * 4) * 0.01
+      const wobble = Math.sin(k * 3.7 + boil * 9.1 + i) * 0.004
+      const r = scale * (0.04 + f * 0.6 + loud * 0.06 + wave + wobble)
+      const p = nn.polarToCartesian(r, i / sides * Math.PI * 2 + f * curl + spin)
+      return `${cx + p.x} ${cy + p.y}`
+    })
+    return 'M ' + pts.join(' L ')
+  }
+
+  function draw () {
+    requestAnimationFrame(draw)
+    const t = performance.now() / 1000
+    const dt = Math.min(0.1, t - lastT)
+    lastT = t
+    if (analyser) analyser.getByteFrequencyData(freqData)
+
+    const bass = level(0, 3)
+    const volume = level(0, 64)
+
+    if (bass - avgBass > 0.05 && t - lastBeat > 0.25) kick(t)
+    avgBass += (bass - avgBass) * Math.min(1, dt * 5)
+
+    energy += (level(0, 10) - energy) * Math.min(1, dt * 3)
+    peak = Math.max(energy, peak - dt * 0.02, 0.3)
+    const before = hype
+    hype = nn.clamp((energy / peak - 0.6) / 0.3, 0, 1)
+    if (hype > 0.8 && before <= 0.8 && t - morphTime > 4) morph(t)
+
+    punch = Math.max(0, punch - dt * 5)
+    flash = Math.max(0, flash - dt * 8)
+    const age = t - morphTime
+    const pop = Math.max(0, 1 - age * 2)
+    const speed = 0.3 + volume * 3 + hype * 2
+    travel += speed * dt
+    turn += (0.3 + volume * 2 + pop * 8 + punch * hype * 3) * dt
+
+    body.css('background', nn.hsl(hue % 360, 85, 72 + flash * 26))
+
+    const zoom = 1 + punch * (0.03 + hype * 0.07)
+    const shake = punch * hype * 14
+    svg.css('transform', `translate(${nn.random(-1, 1) * shake}px, ${nn.random(-1, 1) * shake}px) scale(${zoom})`)
+
+    beams.forEach((beam, i) => {
+      const x = i < 3 ? 0 : nn.width
+      const sweep = 0.8 + Math.sin(t * (1.2 + hype * 2) + i * 1.3) * 0.5
+      const angle = i < 3 ? sweep : Math.PI - sweep
+      const a = nn.polarToCartesian(edge * 2.5, angle - 0.05)
+      const b = nn.polarToCartesian(edge * 2.5, angle + 0.05)
+      const pts = hype > 0.05 ? `${x},0 ${x + a.x},${a.y} ${x + b.x},${b.y}` : '0,0'
+      beam.set('points', pts)
+        .fill(nn.hsl((hue + 180 + i * 20) % 360, 100, 90))
+        .set('fill-opacity', hype * 0.5)
+    })
+
+    speedLines.forEach((s) => {
+      s.dist += (20 + s.dist * 2) * speed * dt
+      if (s.dist > edge) {
+        s.dist = nn.random(10, 60)
+        s.angle = nn.random(Math.PI * 2)
+      }
+      const a = nn.polarToCartesian(s.dist, s.angle)
+      const b = nn.polarToCartesian(s.dist * (1 - 0.06 * speed), s.angle)
+      s.line.position(cx + a.x, cy + a.y, cx + b.x, cy + b.y)
+        .strokeWidth(2 + s.dist / edge * 4)
+    })
+
+    rings.forEach((ring, i) => {
+      const depth = (i + travel) % rings.length / rings.length
+      const loud = freqData[Math.floor(depth * 40)] / 255
+      const r = scale * 0.9 * depth * depth * (1 + loud * 0.3)
+      const twist = depth * 3 + t * 0.2
+      const pts = nn.times(sides, (j) => {
+        const wobble = 1 + Math.sin(j * 5.3 + Math.floor(t * 8) * 7.7 + i) * 0.015
+        const p = nn.polarToCartesian(r * wobble, j / sides * Math.PI * 2 + twist)
+        return `${cx + p.x},${cy + p.y}`
+      })
+      ring.set('points', pts.join(' '))
+        .strokeWidth(2 + depth * 6)
+        .set('stroke-opacity', Math.min(depth * 3, (1 - depth) * 3) * 0.35)
+    })
+
+    arms.forEach((arm, i) => {
+      const d = i < sides ? spiral(i, 5, turn, t) : 'M 0 0'
+      const w = 6 + bass * 8 + punch * hype * 6
+      arm.outline.set('d', d).strokeWidth(w + 8)
+      arm.line.set('d', d)
+        .strokeWidth(w)
+        .stroke(nn.hsl((hue + 150 + i * 35) % 360, 95, 60))
+    })
+
+    dots.forEach((dot, i) => {
+      const show = i < sides && hype < 0.6
+      dot.set('d', show ? spiral(i, -3, -turn * 0.6, t) : 'M 0 0')
+    })
+
+    stars.forEach((star, i) => {
+      const loud = level(i * 8, i * 8 + 8)
+      const a = turn * (0.5 + i * 0.12) * (i % 2 ? -1 : 1) + i
+      const p = nn.polarToCartesian(scale * (0.32 + Math.sin(t * 1.3 + i) * 0.1), a)
+      const r = scale * (0.025 + loud * 0.04 + punch * 0.015)
+      star.set('points', starPoints(cx + p.x, cy + p.y, r, t * 2 + i))
+        .fill(nn.hsl((hue + 60 + i * 50) % 360, 95, 65))
+    })
+
+    shocks.forEach((s) => {
+      const life = (t - s.born) / 0.6
+      const r = scale * (0.08 + life * 0.9)
+      const pts = nn.times(sides, (j) => {
+        const p = nn.polarToCartesian(r, j / sides * Math.PI * 2 + turn)
+        return `${cx + p.x},${cy + p.y}`
+      })
+      s.shape.set('points', pts.join(' '))
+        .strokeWidth(Math.max(0, (1 - life) * (6 + hype * 10)))
+        .set('stroke-opacity', Math.max(0, 1 - life))
+    })
+    shocks.filter((s) => t - s.born > 0.6).forEach((s) => s.shape.remove())
+    shocks = shocks.filter((s) => t - s.born <= 0.6)
+
+    sparks.forEach((s) => {
+      const life = t - s.born
+      const a = s.angle + life * 3
+      const x = cx + Math.cos(a) * s.speed * life
+      const y = cy + Math.sin(a) * s.speed * life
+      s.shape.set('points', starPoints(x, y, Math.max(0, s.size * (1 - life)), life * 8))
+    })
+    sparks.filter((s) => t - s.born > 1).forEach((s) => s.shape.remove())
+    sparks = sparks.filter((s) => t - s.born <= 1)
+  }
+
+  draw()
+</script>
